@@ -1,5 +1,7 @@
 # Changelog
 
+## [v0.1.6](https://github.com/upamune/opencode-bash-sandbox/compare/v0.1.5...v0.1.6) - 2026-04-29
+
 ## [v0.1.5](https://github.com/upamune/opencode-bash-sandbox/compare/v0.1.4...v0.1.5) - 2026-04-29
 
 ## [v0.1.4](https://github.com/upamune/opencode-bash-sandbox/compare/v0.1.3...v0.1.4) - 2026-04-29
