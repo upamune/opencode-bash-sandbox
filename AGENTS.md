@@ -21,6 +21,7 @@ Use the package scripts as the source of truth:
 - `pnpm run fmt:check` verifies formatting without writing changes.
 
 QEMU must be installed for runtime validation because Gondolin starts micro-VMs.
+The plugin defaults to the QEMU backend. To use the experimental `krun` backend instead, set `vmm: "krun"` in the plugin options and provide `krunRunnerPath` if needed.
 
 ## Coding Style & Naming Conventions
 

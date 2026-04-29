@@ -113,6 +113,8 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
   const cpus = typeof options?.cpus === "number" ? options.cpus : undefined;
   const startTimeoutMs =
     typeof options?.startTimeoutMs === "number" ? options.startTimeoutMs : undefined;
+  const vmm =
+    typeof options?.vmm === "string" ? options.vmm : "qemu";
   const krunRunnerPath =
     typeof options?.krunRunnerPath === "string" ? options.krunRunnerPath : undefined;
 
@@ -125,7 +127,7 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
       entry = VM.create({
         sessionLabel: `opencode:${root}`,
         sandbox: {
-          vmm: "krun",
+          vmm: vmm as "qemu" | "krun",
           ...(krunRunnerPath !== undefined ? { krunRunnerPath } : {}),
         },
         rootfs: {
