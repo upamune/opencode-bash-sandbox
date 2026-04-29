@@ -26,6 +26,10 @@
     "fmt": "oxfmt plugin/",
     "fmt:check": "oxfmt --check plugin/"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/upamune/opencode-bash-sandbox"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
