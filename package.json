@@ -2,6 +2,7 @@
   "name": "opencode-bash-sandbox",
   "version": "0.1.0",
   "description": "OpenCode plugin that runs bash commands inside a Gondolin micro-VM sandbox",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
