@@ -26,6 +26,9 @@
     "fmt": "oxfmt plugin/",
     "fmt:check": "oxfmt --check plugin/"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "dependencies": {
     "@earendil-works/gondolin": "^0.8.0"
   },
