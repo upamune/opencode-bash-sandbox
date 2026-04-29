@@ -101,14 +101,6 @@ function buildNetworkConfig(options?: PluginOptions) {
   const blockInternalRanges = options?.blockInternalRanges;
   const secretsInput = options?.secrets;
 
-  const hasNetworkOption =
-    (Array.isArray(allowedHosts) && allowedHosts.length > 0) ||
-    (Array.isArray(allowedInternalHosts) && allowedInternalHosts.length > 0) ||
-    blockInternalRanges !== undefined ||
-    (secretsInput !== null && typeof secretsInput === "object");
-
-  if (!hasNetworkOption) return undefined;
-
   const secrets: Record<string, SecretDefinition> = {};
   if (secretsInput !== null && typeof secretsInput === "object") {
     for (const [key, raw] of Object.entries(secretsInput as Record<string, unknown>)) {
@@ -119,6 +111,11 @@ function buildNetworkConfig(options?: PluginOptions) {
       };
     }
   }
+
+  const hasAllowedHost =
+    (Array.isArray(allowedHosts) && allowedHosts.length > 0) ||
+    (Array.isArray(allowedInternalHosts) && allowedInternalHosts.length > 0) ||
+    Object.keys(secrets).length > 0;
 
   return createHttpHooks({
     ...(Array.isArray(allowedHosts) && allowedHosts.length > 0
@@ -131,6 +128,7 @@ function buildNetworkConfig(options?: PluginOptions) {
       ? { blockInternalRanges: blockInternalRanges as boolean }
       : {}),
     ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
+    ...(hasAllowedHost ? {} : { isIpAllowed: async () => false }),
   });
 }
 
