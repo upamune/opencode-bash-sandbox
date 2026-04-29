@@ -21,6 +21,11 @@ type VmEntry = {
   workspace: string;
 };
 
+type VmRecord = {
+  promise: Promise<VmEntry>;
+  vm?: VM;
+};
+
 type SecretInput = {
   hosts: string[];
   value: string;
@@ -52,6 +57,28 @@ function outputPreview(value: string) {
   const max = 30_000;
   if (value.length <= max) return value;
   return `...\n\n${value.slice(-max)}`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isVmFailure(error: unknown) {
+  const message = errorMessage(error);
+  return (
+    message.includes("vm startup timed out") ||
+    message.includes("vm_start_timeout") ||
+    message.includes("virtio bridge queue exceeded") ||
+    message.includes("queue_full")
+  );
+}
+
+function warn(message: string, error?: unknown) {
+  if (error === undefined) {
+    console.warn(`[opencode-bash-sandbox] ${message}`);
+    return;
+  }
+  console.warn(`[opencode-bash-sandbox] ${message}: ${errorMessage(error)}`);
 }
 
 async function askForExternalWorkdir(ctx: ToolContext, workdir: string) {
@@ -107,7 +134,7 @@ function buildNetworkConfig(options?: PluginOptions) {
   });
 }
 
-const GondolinBashPlugin: Plugin = async (_input, options) => {
+const GondolinBashPlugin: Plugin = async (input, options) => {
   const networkConfig = buildNetworkConfig(options);
   const memory = typeof options?.memory === "string" ? options.memory : undefined;
   const cpus = typeof options?.cpus === "number" ? options.cpus : undefined;
@@ -116,40 +143,67 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
   const vmm = typeof options?.vmm === "string" ? options.vmm : "qemu";
   const krunRunnerPath =
     typeof options?.krunRunnerPath === "string" ? options.krunRunnerPath : undefined;
+  const prewarm = options?.prewarm !== false;
 
-  const vms = new Map<string, Promise<VmEntry>>();
+  const vms = new Map<string, VmRecord>();
+
+  async function discardVm(root: string, record?: VmRecord) {
+    if (record !== undefined && vms.get(root) !== record) return;
+    vms.delete(root);
+
+    if (record?.vm !== undefined) {
+      await record.vm.close().catch((error) => {
+        warn(`failed to close VM for ${root}`, error);
+      });
+      return;
+    }
+
+    if (record !== undefined) {
+      await record.promise.then((entry) => entry.vm.close()).catch(() => {});
+    }
+  }
 
   function getVm(directory: string) {
     const root = path.resolve(directory);
-    let entry = vms.get(root);
-    if (!entry) {
-      entry = VM.create({
-        sessionLabel: `opencode:${root}`,
-        sandbox: {
-          vmm: vmm as "qemu" | "krun",
-          ...(krunRunnerPath !== undefined ? { krunRunnerPath } : {}),
-        },
-        rootfs: {
-          mode: "readonly",
-        },
-        ...(networkConfig ? { httpHooks: networkConfig.httpHooks, env: networkConfig.env } : {}),
-        ...(memory !== undefined ? { memory } : {}),
-        ...(cpus !== undefined ? { cpus } : {}),
-        ...(startTimeoutMs !== undefined ? { startTimeoutMs } : {}),
-        vfs: {
-          mounts: {
-            [WORKSPACE]: new RealFSProvider(root),
+    let record = vms.get(root);
+    if (!record) {
+      record = {
+        promise: VM.create({
+          sessionLabel: `opencode:${root}`,
+          sandbox: {
+            vmm: vmm as "qemu" | "krun",
+            ...(krunRunnerPath !== undefined ? { krunRunnerPath } : {}),
           },
-        },
-      }).then((vm) => ({ vm, directory: root, workspace: WORKSPACE }));
-      vms.set(root, entry);
+          rootfs: {
+            mode: "readonly",
+          },
+          ...(networkConfig ? { httpHooks: networkConfig.httpHooks, env: networkConfig.env } : {}),
+          ...(memory !== undefined ? { memory } : {}),
+          ...(cpus !== undefined ? { cpus } : {}),
+          ...(startTimeoutMs !== undefined ? { startTimeoutMs } : {}),
+          vfs: {
+            mounts: {
+              [WORKSPACE]: new RealFSProvider(root),
+            },
+          },
+        }).then((vm) => {
+          record!.vm = vm;
+          return { vm, directory: root, workspace: WORKSPACE };
+        }),
+      };
+      record.promise.catch((error) => {
+        warn(`VM startup failed for ${root}`, error);
+        void discardVm(root, record);
+      });
+      vms.set(root, record);
     }
-    return entry;
+    return record.promise;
   }
 
   async function closeAll() {
-    const entries = await Promise.allSettled(vms.values());
+    const records = Array.from(vms.values());
     vms.clear();
+    const entries = await Promise.allSettled(records.map((record) => record.promise));
     await Promise.allSettled(
       entries.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value.vm.close()] : [])),
     );
@@ -158,6 +212,10 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
   process.once("beforeExit", () => {
     void closeAll();
   });
+
+  if (prewarm) {
+    void getVm(input.directory).catch(() => {});
+  }
 
   return {
     tool: {
@@ -187,7 +245,8 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
             );
           }
 
-          const entry = await getVm(ctx.directory);
+          const root = path.resolve(ctx.directory);
+          const entry = await getVm(root);
           const hostWorkdir = args.workdir
             ? path.resolve(ctx.directory, args.workdir)
             : entry.directory;
@@ -217,11 +276,19 @@ const GondolinBashPlugin: Plugin = async (_input, options) => {
 
           const timeout = args.timeout ?? DEFAULT_TIMEOUT_MS;
           const command = timeout > 0 ? timeoutCommand(args.command, timeout) : args.command;
-          const result = await entry.vm.exec(["/bin/sh", "-lc", command], {
-            cwd: guestWorkdir,
-            stdout: "buffer",
-            stderr: "buffer",
-          });
+          let result;
+          try {
+            result = await entry.vm.exec(["/bin/sh", "-lc", command], {
+              cwd: guestWorkdir,
+              stdout: "buffer",
+              stderr: "buffer",
+            });
+          } catch (error) {
+            if (isVmFailure(error)) {
+              await discardVm(root, vms.get(root));
+            }
+            throw error;
+          }
 
           const output = result.stderr
             ? `${result.stdout}${result.stdout ? "\n" : ""}<stderr>\n${result.stderr}</stderr>`

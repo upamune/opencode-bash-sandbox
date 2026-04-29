@@ -55,6 +55,7 @@ All options are optional.
     ["opencode-bash-sandbox", {
       "memory": "2G",
       "cpus": 4,
+      "prewarm": true,
       "startTimeoutMs": 30000,
       "allowedHosts": ["api.github.com", "registry.npmjs.org"],
       "allowedInternalHosts": ["internal.example.com"],
@@ -74,6 +75,7 @@ All options are optional.
 |---|---|---|
 | `memory` | `"1G"` | VM memory (QEMU syntax: `"2G"`, `"512M"`, …) |
 | `cpus` | `2` | VM CPU count |
+| `prewarm` | `true` | Start the project VM in the background when the plugin loads |
 | `startTimeoutMs` | (gondolin default) | VM startup timeout in ms |
 | `allowedHosts` | none (all blocked) | Hostnames the VM may reach over HTTP/HTTPS |
 | `allowedInternalHosts` | none | Hosts allowed to resolve to internal IP ranges |
