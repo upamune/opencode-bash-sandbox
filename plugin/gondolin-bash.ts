@@ -174,9 +174,6 @@ const GondolinBashPlugin: Plugin = async (input, options) => {
             vmm: vmm as "qemu" | "krun",
             ...(krunRunnerPath !== undefined ? { krunRunnerPath } : {}),
           },
-          rootfs: {
-            mode: "readonly",
-          },
           ...(networkConfig ? { httpHooks: networkConfig.httpHooks, env: networkConfig.env } : {}),
           ...(memory !== undefined ? { memory } : {}),
           ...(cpus !== undefined ? { cpus } : {}),
