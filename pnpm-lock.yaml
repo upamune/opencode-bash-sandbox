@@ -9,12 +9,12 @@ importers:
   .:
     dependencies:
       '@earendil-works/gondolin':
-        specifier: latest
+        specifier: ^0.8.0
         version: 0.8.0
-      '@opencode-ai/plugin':
-        specifier: latest
-        version: 1.14.29
     devDependencies:
+      '@opencode-ai/plugin':
+        specifier: ^1.14.29
+        version: 1.14.29
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
