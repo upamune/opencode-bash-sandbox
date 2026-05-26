@@ -1,5 +1,12 @@
 import type { PluginOptions } from "@opencode-ai/plugin";
-import { Destination, NetworkPolicy, Rule, type SandboxBuilder } from "microsandbox";
+import {
+  Destination,
+  NetworkPolicy,
+  PortRange,
+  Rule,
+  type Protocol,
+  type SandboxBuilder,
+} from "microsandbox";
 import { resolveEnvRef } from "./env.js";
 import {
   booleanOption,
@@ -22,10 +29,25 @@ type SecretInput = {
   requireTlsIdentity?: boolean;
 };
 
+type PortInput = {
+  host: number;
+  guest: number;
+};
+
 type DnsConfigBuilder = {
   rebindProtection(enabled: boolean): DnsConfigBuilder;
   nameservers(servers: string[]): DnsConfigBuilder;
   queryTimeoutMs(ms: number): DnsConfigBuilder;
+};
+
+type NetworkConfigBuilder = {
+  policy(policy: NetworkPolicy): NetworkConfigBuilder;
+  dns(configure: (dns: DnsConfigBuilder) => DnsConfigBuilder): NetworkConfigBuilder;
+  tls(configure: (tls: TlsConfigBuilder) => TlsConfigBuilder): NetworkConfigBuilder;
+  secret(configure: (secret: SecretConfigBuilder) => SecretConfigBuilder): NetworkConfigBuilder;
+  onSecretViolation(action: string): NetworkConfigBuilder;
+  maxConnections(max: number): NetworkConfigBuilder;
+  trustHostCAs(enabled: boolean): NetworkConfigBuilder;
 };
 
 type TlsConfigBuilder = {
@@ -49,9 +71,28 @@ type SecretConfigBuilder = {
   injectBody(enabled: boolean): SecretConfigBuilder;
 };
 
+function publishedGuestPorts(options: PluginOptions | undefined, key: string) {
+  const ports = options?.[key];
+  if (!Array.isArray(ports)) return [];
+
+  return (ports as PortInput[]).flatMap((port) =>
+    typeof port.host === "number" && typeof port.guest === "number" ? [port.guest] : [],
+  );
+}
+
+function allowIngressPort(protocol: Protocol, guestPort: number) {
+  return {
+    ...Rule.allowIngress(Destination.any()),
+    protocols: [protocol],
+    ports: [PortRange.single(guestPort)],
+  };
+}
+
 export function configureNetwork(builder: SandboxBuilder, options?: PluginOptions) {
   const allowedHosts = stringArrayOption(options, "allowedHosts") ?? [];
   const allowedInternalHosts = stringArrayOption(options, "allowedInternalHosts") ?? [];
+  const tcpGuestPorts = publishedGuestPorts(options, "ports");
+  const udpGuestPorts = publishedGuestPorts(options, "udpPorts");
   const blockInternalRanges = booleanOption(options, "blockInternalRanges") ?? true;
   const secretsInput = stringRecordOption(options, "secrets") ?? {};
   const disableNetwork = booleanOption(options, "disableNetwork");
@@ -81,30 +122,32 @@ export function configureNetwork(builder: SandboxBuilder, options?: PluginOption
     allowAllNetwork !== true &&
     allowedHosts.length === 0 &&
     allowedInternalHosts.length === 0 &&
+    tcpGuestPorts.length === 0 &&
+    udpGuestPorts.length === 0 &&
     secretEntries.length === 0
   ) {
-    return builder.network((network) => network.policyJson(JSON.stringify(NetworkPolicy.none())));
+    return builder.network((network: NetworkConfigBuilder) => network.policy(NetworkPolicy.none()));
   }
 
-  return builder.network((network) => {
+  return builder.network((network: NetworkConfigBuilder) => {
     if (allowAllNetwork === true) {
-      network.policyJson(JSON.stringify(NetworkPolicy.allowAll()));
+      network.policy(NetworkPolicy.allowAll());
     } else {
       const allowedSecretHosts = secretEntries.flatMap(([, secret]) => secret.hosts ?? []);
       const rules = [
         Rule.allowDns(),
-        ...allowedHosts.map((host) => Rule.allowEgress(Destination.domain(host))),
         ...allowedInternalHosts.map((host) => Rule.allowEgress(Destination.domain(host))),
+        ...allowedHosts.map((host) => Rule.allowEgress(Destination.domain(host))),
         ...allowedSecretHosts.map((host) => Rule.allowEgress(Destination.domain(host))),
+        ...tcpGuestPorts.map((port) => allowIngressPort("tcp", port)),
+        ...udpGuestPorts.map((port) => allowIngressPort("udp", port)),
       ];
 
-      network.policyJson(
-        JSON.stringify({
-          defaultEgress: "deny",
-          defaultIngress: "deny",
-          rules,
-        }),
-      );
+      network.policy({
+        defaultEgress: "deny",
+        defaultIngress: "deny",
+        rules,
+      });
     }
 
     if (
