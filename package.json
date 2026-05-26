@@ -22,6 +22,7 @@
   "scripts": {
     "build": "bun build ./plugin/microsandbox-bash.ts --outfile ./dist/index.js --target node --packages external",
     "prepublishOnly": "bun run build",
+    "test": "bun test",
     "check": "tsc --noEmit && oxlint plugin/ && knip",
     "fmt": "oxfmt plugin/",
     "fmt:check": "oxfmt --check plugin/"

@@ -4,11 +4,12 @@
 
 This repository contains an OpenCode plugin that replaces the built-in `bash` tool with a microsandbox-backed microVM.
 
-- `plugin/microsandbox-bash.ts` is the source entry point and contains the plugin registration, sandbox lifecycle, path mapping, network policy setup, and tool execution logic.
+- `plugin/microsandbox-bash.ts` is the source entry point and only wires plugin registration, prewarm, shutdown, and the `bash` tool together.
+- Focused runtime modules live under `plugin/`: `bash-tool.ts` contains tool execution, `sandbox-pool.ts` owns sandbox lifecycle, `sandbox.ts` builds the base VM, `network.ts` configures network and secrets, and `sandbox-config.ts` applies ports, rlimits, volumes, and patches.
 - `dist/` is generated build output and should not be edited by hand.
 - `README.md` documents user-facing setup and configuration.
 - `package.json`, `tsconfig.json`, `.oxlintrc.json`, and `knip.json` define scripts, TypeScript, lint, and unused-code checks.
-- There is currently no dedicated test directory; add tests alongside source or under `test/` when introducing a test runner.
+- `test/` contains Bun tests for helper behavior that should stay stable across refactors.
 
 ## Build, Test, and Development Commands
 
@@ -16,6 +17,7 @@ Use the package scripts as the source of truth:
 
 - `pnpm install` installs dependencies from `pnpm-lock.yaml`.
 - `pnpm run build` bundles `plugin/microsandbox-bash.ts` to `dist/index.js` with Bun.
+- `pnpm test` runs Bun tests.
 - `pnpm run check` runs TypeScript type checking, Oxlint, and Knip.
 - `pnpm run fmt` formats TypeScript files in `plugin/`.
 - `pnpm run fmt:check` verifies formatting without writing changes.
@@ -28,7 +30,7 @@ Write TypeScript as ES modules using the strict settings in `tsconfig.json`. Pre
 
 ## Testing Guidelines
 
-No automated test framework is configured yet. Before submitting changes, run `pnpm run check` and `pnpm run build`. For behavior changes, manually exercise the plugin through OpenCode with a temporary `opencode.json`, including workspace-relative commands, timeout handling, and network/secrets options. If you add tests, document the new command in `package.json` and this file.
+Before submitting changes, run `pnpm test`, `pnpm run check`, and `pnpm run build`. For behavior changes, manually exercise the plugin through OpenCode with a temporary `opencode.json`, including workspace-relative commands, timeout handling, and network/secrets options.
 
 ## Commit & Pull Request Guidelines
 
