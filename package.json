@@ -1,7 +1,7 @@
 {
   "name": "opencode-bash-sandbox",
   "version": "0.1.6",
-  "description": "OpenCode plugin that runs bash commands inside a Gondolin micro-VM sandbox",
+  "description": "OpenCode plugin that runs bash commands inside a microsandbox microVM",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,12 +15,12 @@
     "opencode",
     "sandbox",
     "bash",
-    "gondolin",
+    "microsandbox",
     "security",
     "vm"
   ],
   "scripts": {
-    "build": "bun build ./plugin/gondolin-bash.ts --outfile ./dist/index.js --target node --packages external",
+    "build": "bun build ./plugin/microsandbox-bash.ts --outfile ./dist/index.js --target node --packages external",
     "prepublishOnly": "bun run build",
     "check": "tsc --noEmit && oxlint plugin/ && knip",
     "fmt": "oxfmt plugin/",
@@ -34,7 +34,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "dependencies": {
-    "@earendil-works/gondolin": "^0.8.0"
+    "microsandbox": "^0.4.6"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.0.0"
