@@ -33,6 +33,11 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "msgpackr-extract"
+    ]
+  },
   "dependencies": {
     "microsandbox": "^0.4.6"
   },
